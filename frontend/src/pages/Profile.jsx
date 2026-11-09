@@ -1,239 +1,168 @@
-import React, { useState, useEffect } from 'react';
-import { User, Crown, Calendar, Target, BookOpen, Award, Settings, Bell } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
+import { Crown, Calendar, Target, BookOpen, Flame, Pencil, Check, Sparkles } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { getHistory } from '../services/api';
+import { getLocalProfile, saveLocalProfile } from '../services/localEngine';
+
+const dayKey = (d) => new Date(d).toISOString().slice(0, 10);
+
+const computeStreak = (items) => {
+  const days = new Set(items.map((i) => dayKey(i.createdAt)));
+  let streak = 0;
+  const cursor = new Date();
+  if (!days.has(dayKey(cursor))) cursor.setDate(cursor.getDate() - 1); // streak can continue from yesterday
+  while (days.has(dayKey(cursor))) {
+    streak += 1;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
+};
 
 const Profile = () => {
   const { history, setHistory } = useApp();
-  const [stats, setStats] = useState({
-    totalProblems: 0,
-    averageConfidence: 0,
-    thisWeekProblems: 0,
-    streak: 0
-  });
+  const [profile, setProfile] = useState(getLocalProfile);
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(profile.name);
 
   useEffect(() => {
-    fetchStats();
+    getHistory()
+      .then((res) => res.success && setHistory(res.data))
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fetchStats = async () => {
-    try {
-      const response = await getHistory();
-      if (response.success) {
-        const historyData = response.data;
-        setHistory(historyData);
-        
-        // Calculate stats
-        const totalProblems = historyData.length;
-        const averageConfidence = totalProblems > 0 
-          ? Math.round(historyData.reduce((sum, item) => sum + item.confidence, 0) / totalProblems)
-          : 0;
-        
-        // Calculate this week's problems
-        const oneWeekAgo = new Date();
-        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-        const thisWeekProblems = historyData.filter(
-          item => new Date(item.createdAt) > oneWeekAgo
-        ).length;
+  const stats = useMemo(() => {
+    const total = history.length;
+    const avg = total ? Math.round(history.reduce((s, i) => s + i.confidence, 0) / total) : 0;
+    const weekAgo = Date.now() - 7 * 24 * 3600 * 1000;
+    const week = history.filter((i) => new Date(i.createdAt).getTime() > weekAgo).length;
+    const subjects = history.reduce((acc, i) => {
+      const s = (i.subject || 'General').split(' · ')[0];
+      acc[s] = (acc[s] || 0) + 1;
+      return acc;
+    }, {});
+    return { total, avg, week, streak: computeStreak(history), subjects };
+  }, [history]);
 
-        setStats({
-          totalProblems,
-          averageConfidence,
-          thisWeekProblems,
-          streak: Math.min(thisWeekProblems, 7) // Simple streak calculation
-        });
-      }
-    } catch (err) {
-      console.error('Error fetching stats:', err);
-    }
+  const saveName = () => {
+    const next = { ...profile, name: name.trim() || 'Miraa learner' };
+    saveLocalProfile(next);
+    setProfile(next);
+    setName(next.name);
+    setEditing(false);
   };
 
-  const subscriptionPlans = [
-    {
-      name: 'Free',
-      current: true,
-      price: '$0',
-      features: [
-        '10 problems per day',
-        'Basic step-by-step solutions',
-        'Text input only',
-        'Basic history tracking'
-      ]
-    },
-    {
-      name: 'Pro',
-      current: false,
-      price: '$9.99/month',
-      features: [
-        'Unlimited problems',
-        'Advanced AI explanations',
-        'Image upload support',
-        'Detailed analytics',
-        'Priority support',
-        'Export solutions'
-      ]
-    }
+  const statCards = [
+    { icon: BookOpen, label: 'Saved questions', value: stats.total, color: 'text-blue-600 bg-blue-50' },
+    { icon: Flame, label: 'Day streak', value: stats.streak, color: 'text-orange-600 bg-orange-50' },
+    { icon: Calendar, label: 'This week', value: stats.week, color: 'text-green-600 bg-green-50' },
+    { icon: Target, label: 'Avg. confidence', value: `${stats.avg}%`, color: 'text-primary-600 bg-primary-50' },
   ];
 
+  const subjectEntries = Object.entries(stats.subjects).sort((a, b) => b[1] - a[1]);
+
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Profile</h1>
-          <p className="text-gray-600">Manage your account and track your progress</p>
+    <div className="min-h-[calc(100vh-4rem)] bg-gray-50 py-10">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+        {/* Header card */}
+        <div className="card mb-6 flex flex-col items-start gap-5 sm:flex-row sm:items-center">
+          <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-600 to-pink-500 font-display text-2xl font-bold text-white">
+            {profile.name.charAt(0).toUpperCase()}
+          </div>
+          <div className="flex-1">
+            {editing ? (
+              <form onSubmit={(e) => { e.preventDefault(); saveName(); }} className="flex gap-2">
+                <input className="input-field max-w-xs py-1.5" value={name} onChange={(e) => setName(e.target.value)} autoFocus maxLength={40} />
+                <button type="submit" className="btn-primary px-3 py-1.5" aria-label="Save name"><Check className="h-4 w-4" /></button>
+              </form>
+            ) : (
+              <h1 className="flex items-center gap-2 text-2xl font-extrabold text-gray-900">
+                {profile.name}
+                <button onClick={() => setEditing(true)} className="rounded-md p-1 text-gray-400 hover:text-gray-700" aria-label="Edit name">
+                  <Pencil className="h-4 w-4" />
+                </button>
+              </h1>
+            )}
+            <p className="mt-1 text-sm text-gray-500">
+              Free plan · Studying with Miraa since{' '}
+              {new Date(profile.joinedAt).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+            </p>
+          </div>
+          <Link to="/solve" className="btn-primary">
+            <Sparkles className="h-4 w-4" /> Ask Miraa
+          </Link>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column - Profile Info */}
-          <div className="lg:col-span-1 space-y-6">
-            {/* Profile Card */}
-            <div className="card text-center">
-              <div className="w-20 h-20 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <User className="h-10 w-10 text-primary-600" />
+        {/* Stats */}
+        <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+          {statCards.map(({ icon: Icon, label, value, color }) => (
+            <div key={label} className="card p-5">
+              <div className={`mb-3 flex h-9 w-9 items-center justify-center rounded-lg ${color}`}>
+                <Icon className="h-5 w-5" />
               </div>
-              <h2 className="text-xl font-semibold text-gray-900 mb-1">Study Companion User</h2>
-              <p className="text-gray-600 mb-4">Free Plan</p>
-              <div className="flex items-center justify-center space-x-2 text-sm text-gray-500">
-                <Calendar className="h-4 w-4" />
-                <span>Joined September 2024</span>
-              </div>
+              <p className="font-display text-2xl font-bold text-gray-900">{value}</p>
+              <p className="text-sm text-gray-500">{label}</p>
             </div>
+          ))}
+        </div>
 
-            {/* Quick Stats */}
-            <div className="card">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Stats</h3>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <BookOpen className="h-4 w-4 text-blue-500" />
-                    <span className="text-gray-600">Total Problems</span>
-                  </div>
-                  <span className="font-semibold">{stats.totalProblems}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <Target className="h-4 w-4 text-green-500" />
-                    <span className="text-gray-600">Avg. Confidence</span>
-                  </div>
-                  <span className="font-semibold">{stats.averageConfidence}%</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <Award className="h-4 w-4 text-yellow-500" />
-                    <span className="text-gray-600">This Week</span>
-                  </div>
-                  <span className="font-semibold">{stats.thisWeekProblems}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Settings */}
-            <div className="card">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Settings</h3>
-              <div className="space-y-3">
-                <button className="w-full flex items-center space-x-2 text-left p-2 hover:bg-gray-50 rounded-lg transition-colors">
-                  <Settings className="h-4 w-4 text-gray-500" />
-                  <span>Account Settings</span>
-                </button>
-                <button className="w-full flex items-center space-x-2 text-left p-2 hover:bg-gray-50 rounded-lg transition-colors">
-                  <Bell className="h-4 w-4 text-gray-500" />
-                  <span>Notifications</span>
-                </button>
-              </div>
-            </div>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          {/* Subjects */}
+          <div className="card">
+            <h2 className="mb-4 text-lg font-bold text-gray-900">Subjects</h2>
+            {subjectEntries.length === 0 ? (
+              <p className="text-sm text-gray-500">Save some questions to see your subject mix.</p>
+            ) : (
+              <ul className="space-y-3">
+                {subjectEntries.map(([subject, count]) => (
+                  <li key={subject}>
+                    <div className="mb-1 flex justify-between text-sm">
+                      <span className="text-gray-700">{subject}</span>
+                      <span className="font-medium text-gray-900">{count}</span>
+                    </div>
+                    <div className="h-2 w-full rounded-full bg-gray-100">
+                      <div className="h-2 rounded-full bg-primary-500" style={{ width: `${(count / stats.total) * 100}%` }} />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
-          {/* Right Column - Subscription Plans */}
-          <div className="lg:col-span-2">
-            <div className="card">
-              <h3 className="text-2xl font-bold text-gray-900 mb-6">Subscription Plans</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {subscriptionPlans.map((plan, index) => (
-                  <div
-                    key={index}
-                    className={`relative border-2 rounded-lg p-6 ${
-                      plan.current
-                        ? 'border-primary-500 bg-primary-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    } transition-colors`}
-                  >
-                    {plan.current && (
-                      <div className="absolute -top-3 left-4">
-                        <span className="bg-primary-500 text-white px-3 py-1 rounded-full text-sm font-medium">
-                          Current Plan
-                        </span>
-                      </div>
-                    )}
-                    
-                    <div className="flex items-center space-x-2 mb-4">
-                      {plan.name === 'Pro' && <Crown className="h-5 w-5 text-yellow-500" />}
-                      <h4 className="text-xl font-semibold text-gray-900">{plan.name}</h4>
-                    </div>
-                    
-                    <div className="mb-6">
-                      <span className="text-3xl font-bold text-gray-900">{plan.price}</span>
-                      {plan.price !== '$0' && <span className="text-gray-600">/month</span>}
-                    </div>
-                    
-                    <ul className="space-y-3 mb-6">
-                      {plan.features.map((feature, featureIndex) => (
-                        <li key={featureIndex} className="flex items-start space-x-2">
-                          <div className="w-1.5 h-1.5 bg-primary-500 rounded-full mt-2 flex-shrink-0"></div>
-                          <span className="text-gray-600">{feature}</span>
-                        </li>
-                      ))}
-                    </ul>
-                    
-                    <button
-                      className={`w-full py-2 px-4 rounded-lg font-medium transition-colors ${
-                        plan.current
-                          ? 'bg-gray-200 text-gray-600 cursor-not-allowed'
-                          : 'bg-primary-600 hover:bg-primary-700 text-white'
-                      }`}
-                      disabled={plan.current}
-                    >
-                      {plan.current ? 'Current Plan' : 'Upgrade to Pro'}
-                    </button>
-                  </div>
-                ))}
+          {/* Plans */}
+          <div className="card lg:col-span-2">
+            <h2 className="mb-5 text-lg font-bold text-gray-900">Your plan</h2>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="rounded-xl border-2 border-primary-500 bg-primary-50/50 p-5">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold text-gray-900">Free</h3>
+                  <span className="rounded-full bg-primary-600 px-2 py-0.5 text-xs font-semibold text-white">Current</span>
+                </div>
+                <p className="mt-2 font-display text-3xl font-extrabold text-gray-900">$0</p>
+                <ul className="mt-4 space-y-2 text-sm text-gray-600">
+                  <li>• Unlimited math solving</li>
+                  <li>• Step-by-step explanations</li>
+                  <li>• Study plans for any subject</li>
+                  <li>• History in this browser</li>
+                </ul>
               </div>
-
-              {/* Pro Benefits */}
-              <div className="mt-8 p-6 bg-gradient-to-r from-primary-50 to-blue-50 rounded-lg">
-                <h4 className="text-lg font-semibold text-gray-900 mb-3">
-                  Why upgrade to Pro?
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-700">
-                  <div>• Solve unlimited problems daily</div>
-                  <div>• Upload images of handwritten problems</div>
-                  <div>• Get more detailed explanations</div>
-                  <div>• Access advanced study analytics</div>
-                  <div>• Export solutions as PDF</div>
-                  <div>• Priority customer support</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Usage Statistics */}
-            <div className="card mt-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Usage This Month</h3>
-              <div className="space-y-4">
-                <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-600">Daily Problems Used</span>
-                    <span className="text-gray-900">3 / 10</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-primary-600 h-2 rounded-full" style={{ width: '30%' }}></div>
-                  </div>
-                </div>
-                
-                <div className="text-sm text-gray-600">
-                  You have <span className="font-semibold text-gray-900">7 problems</span> remaining today.
-                  Upgrade to Pro for unlimited access.
-                </div>
+              <div className="rounded-xl border border-gray-200 p-5">
+                <h3 className="flex items-center gap-2 font-semibold text-gray-900">
+                  <Crown className="h-4 w-4 text-yellow-500" /> Pro
+                </h3>
+                <p className="mt-2 font-display text-3xl font-extrabold text-gray-900">
+                  $9.99<span className="text-base font-medium text-gray-500">/month</span>
+                </p>
+                <ul className="mt-4 space-y-2 text-sm text-gray-600">
+                  <li>• Full AI explanations for every subject</li>
+                  <li>• Photo & handwriting recognition</li>
+                  <li>• Sync across devices</li>
+                  <li>• Priority support</li>
+                </ul>
+                <button disabled className="btn-primary mt-5 w-full">
+                  Coming soon
+                </button>
               </div>
             </div>
           </div>

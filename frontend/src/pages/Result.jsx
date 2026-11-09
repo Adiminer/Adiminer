@@ -1,41 +1,38 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, CheckCircle, Clock, Target } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { ArrowLeft, Bookmark, CheckCircle, Copy, Check, Target, Sparkles, Info } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { saveToHistory } from '../services/api';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ErrorMessage from '../components/ErrorMessage';
 
+const confidenceStyle = (c) =>
+  c >= 90 ? 'bg-green-50 text-green-700' : c >= 75 ? 'bg-yellow-50 text-yellow-700' : 'bg-primary-50 text-primary-700';
+
 const Result = () => {
   const navigate = useNavigate();
   const { currentProblem, currentSolution, setError, error, clearError } = useApp();
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [saved, setSaved] = useState(Boolean(currentSolution?.saved));
+  const [copied, setCopied] = useState(false);
 
-  // Redirect if no current problem/solution
-  React.useEffect(() => {
-    if (!currentProblem || !currentSolution) {
-      navigate('/');
-    }
+  useEffect(() => {
+    if (!currentProblem || !currentSolution) navigate('/solve', { replace: true });
   }, [currentProblem, currentSolution, navigate]);
 
-  const handleSaveToHistory = async () => {
-    if (!currentSolution?.problemId) {
-      setError('No problem ID found');
+  if (!currentProblem || !currentSolution) return null;
+
+  const handleSave = async () => {
+    if (!currentSolution.problemId) {
+      setError('This solution cannot be saved.');
       return;
     }
-
     setSaving(true);
     clearError();
-
     try {
       const response = await saveToHistory(currentSolution.problemId);
-      if (response.success) {
-        setSaved(true);
-        setTimeout(() => setSaved(false), 3000); // Hide success message after 3 seconds
-      } else {
-        setError(response.message || 'Failed to save to history');
-      }
+      if (response.success) setSaved(true);
+      else setError(response.message || 'Failed to save to history');
     } catch (err) {
       setError(err.message || 'An error occurred while saving');
     } finally {
@@ -43,122 +40,105 @@ const Result = () => {
     }
   };
 
-  if (!currentProblem || !currentSolution) {
-    return null; // Will redirect via useEffect
-  }
+  const handleCopy = async () => {
+    const steps = (currentSolution.steps || [])
+      .map((s) => `${s.stepNumber}. ${s.description}: ${s.explanation}`)
+      .join('\n');
+    try {
+      await navigator.clipboard.writeText(
+        `Question: ${currentProblem.text}\nAnswer: ${currentSolution.solution}\n\n${steps}`
+      );
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError('Could not copy to the clipboard.');
+    }
+  };
+
+  const isGuide = currentSolution.subject?.includes('Study guide');
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <button
-            onClick={() => navigate('/')}
-            className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors"
-          >
-            <ArrowLeft className="h-5 w-5" />
-            <span>Back to Home</span>
+    <div className="min-h-[calc(100vh-4rem)] bg-gray-50 py-10">
+      <div className="mx-auto max-w-3xl px-4 sm:px-6">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+          <button onClick={() => navigate('/solve')} className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900">
+            <ArrowLeft className="h-4 w-4" /> New question
           </button>
-
-          <div className="flex items-center space-x-4">
-            {saved && (
-              <div className="flex items-center space-x-2 text-green-600 bg-green-50 px-3 py-1 rounded-full">
-                <CheckCircle className="h-4 w-4" />
-                <span className="text-sm">Saved to history!</span>
-              </div>
-            )}
-            <button
-              onClick={handleSaveToHistory}
-              disabled={saving || saved}
-              className="btn-primary flex items-center space-x-2 disabled:opacity-50"
-            >
-              {saving ? (
-                <LoadingSpinner size="sm" />
-              ) : (
-                <>
-                  <Save className="h-4 w-4" />
-                  <span>{saved ? 'Saved' : 'Save to History'}</span>
-                </>
-              )}
+          <div className="flex gap-2">
+            <button onClick={handleCopy} className="btn-secondary py-2 text-sm">
+              {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+              {copied ? 'Copied' : 'Copy'}
+            </button>
+            <button onClick={handleSave} disabled={saving || saved} className="btn-primary py-2 text-sm">
+              {saving ? <LoadingSpinner size="sm" text="" /> : saved ? <CheckCircle className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
+              {saved ? 'Saved to history' : 'Save to history'}
             </button>
           </div>
         </div>
 
         <ErrorMessage message={error} onClose={clearError} />
 
-        {/* Problem Section */}
-        <div className="card mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Problem</h2>
-          <div className="bg-gray-50 rounded-lg p-4">
-            <p className="text-gray-800 whitespace-pre-wrap">{currentProblem.text}</p>
-            <div className="flex items-center justify-between mt-4 text-sm text-gray-500">
-              <span className={`px-2 py-1 rounded-full ${
-                currentProblem.type === 'text' 
-                  ? 'bg-blue-100 text-blue-800' 
-                  : 'bg-purple-100 text-purple-800'
-              }`}>
-                {currentProblem.type === 'text' ? 'Text Problem' : 'Image Problem'}
+        {/* Question */}
+        <section className="card mb-6">
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500">Question</h2>
+            {currentSolution.subject && (
+              <span className="rounded-full bg-primary-50 px-2.5 py-0.5 text-xs font-medium text-primary-700">
+                {currentSolution.subject}
               </span>
-              <div className="flex items-center space-x-1">
-                <Clock className="h-4 w-4" />
-                <span>Just now</span>
-              </div>
-            </div>
+            )}
           </div>
-        </div>
+          {currentProblem.imageUrl && (
+            <img src={currentProblem.imageUrl} alt="Uploaded problem" className="mb-4 max-h-60 rounded-xl border border-gray-200 object-contain" />
+          )}
+          <p className="whitespace-pre-wrap font-mono text-lg text-gray-900">{currentProblem.text}</p>
+        </section>
 
-        {/* Solution Section */}
-        <div className="card mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold text-gray-900">Solution</h2>
-            <div className="flex items-center space-x-2 bg-green-50 text-green-700 px-3 py-1 rounded-full">
-              <Target className="h-4 w-4" />
-              <span className="font-medium">{currentSolution.confidence}% Confidence</span>
-            </div>
+        {/* Answer */}
+        <section className="card mb-6 border-primary-200 bg-gradient-to-br from-primary-50 to-white">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-primary-700">
+              <Sparkles className="h-4 w-4" /> {isGuide ? 'Miraa says' : 'Answer'}
+            </h2>
+            {typeof currentSolution.confidence === 'number' && (
+              <span className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${confidenceStyle(currentSolution.confidence)}`}>
+                <Target className="h-3.5 w-3.5" /> {currentSolution.confidence}% confidence
+              </span>
+            )}
           </div>
-          
-          <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r-lg mb-6">
-            <h3 className="font-semibold text-blue-900 mb-2">Answer:</h3>
-            <p className="text-blue-800 whitespace-pre-wrap">{currentSolution.solution}</p>
-          </div>
-        </div>
+          <p className={`whitespace-pre-wrap text-gray-900 ${isGuide ? 'text-base' : 'font-display text-2xl font-bold'}`}>
+            {currentSolution.solution}
+          </p>
+        </section>
 
-        {/* Steps Section */}
-        {currentSolution.steps && currentSolution.steps.length > 0 && (
-          <div className="card">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Step-by-Step Solution</h2>
-            <div className="space-y-6">
-              {currentSolution.steps.map((step, index) => (
-                <div key={index} className="flex space-x-4">
-                  <div className="flex-shrink-0">
-                    <div className="w-8 h-8 bg-primary-600 text-white rounded-full flex items-center justify-center font-semibold">
-                      {step.stepNumber}
-                    </div>
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900 mb-2">{step.description}</h3>
-                    <p className="text-gray-700">{step.explanation}</p>
-                  </div>
-                </div>
+        {/* Steps */}
+        {currentSolution.steps?.length > 0 && (
+          <section className="card">
+            <h2 className="mb-6 text-xl font-bold text-gray-900">{isGuide ? 'Your study plan' : 'Step-by-step solution'}</h2>
+            <ol className="relative space-y-6 border-l-2 border-primary-100 pl-6">
+              {currentSolution.steps.map((step, i) => (
+                <li key={i} className="relative">
+                  <span className="absolute -left-[2.35rem] flex h-7 w-7 items-center justify-center rounded-full bg-primary-600 text-sm font-semibold text-white ring-4 ring-white">
+                    {step.stepNumber ?? i + 1}
+                  </span>
+                  <h3 className="font-semibold text-gray-900">{step.description}</h3>
+                  <p className="mt-1 leading-7 text-gray-700">{step.explanation}</p>
+                </li>
               ))}
-            </div>
-          </div>
+            </ol>
+          </section>
         )}
 
-        {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row gap-4 mt-8">
-          <button
-            onClick={() => navigate('/')}
-            className="btn-primary flex-1"
-          >
-            Solve Another Problem
-          </button>
-          <button
-            onClick={() => navigate('/history')}
-            className="btn-secondary flex-1"
-          >
-            View History
-          </button>
+        {currentSolution.local && isGuide && (
+          <p className="mt-6 flex items-start gap-2 text-sm text-gray-500">
+            <Info className="mt-0.5 h-4 w-4 flex-shrink-0" />
+            Miraa solved this in your browser. Full AI explanations for every subject are coming with Miraa Pro.
+          </p>
+        )}
+
+        <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+          <Link to="/solve" className="btn-primary flex-1">Ask another question</Link>
+          <Link to="/history" className="btn-secondary flex-1">View history</Link>
         </div>
       </div>
     </div>

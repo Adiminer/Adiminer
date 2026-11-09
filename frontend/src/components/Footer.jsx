@@ -1,92 +1,43 @@
 import React from 'react';
-import { BookOpen, Github, Twitter, Mail } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import Logo from './Logo';
 
-const Footer = () => {
-  return (
-    <footer className="bg-gray-900 text-white">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-          {/* Logo and Description */}
-          <div className="col-span-1 md:col-span-2">
-            <div className="flex items-center space-x-2 mb-4">
-              <BookOpen className="h-8 w-8 text-primary-400" />
-              <span className="text-xl font-bold">AI Study Companion</span>
-            </div>
-            <p className="text-gray-300 mb-4 max-w-md">
-              Your intelligent study partner powered by AI. Get step-by-step solutions 
-              and explanations for your academic problems.
-            </p>
-            <div className="flex space-x-4">
-              <a href="#" className="text-gray-400 hover:text-white transition-colors">
-                <Github className="h-5 w-5" />
-              </a>
-              <a href="#" className="text-gray-400 hover:text-white transition-colors">
-                <Twitter className="h-5 w-5" />
-              </a>
-              <a href="#" className="text-gray-400 hover:text-white transition-colors">
-                <Mail className="h-5 w-5" />
-              </a>
-            </div>
-          </div>
-
-          {/* Quick Links */}
-          <div>
-            <h3 className="text-lg font-semibold mb-4">Quick Links</h3>
-            <ul className="space-y-2">
-              <li>
-                <a href="/" className="text-gray-300 hover:text-white transition-colors">
-                  Home
-                </a>
-              </li>
-              <li>
-                <a href="/history" className="text-gray-300 hover:text-white transition-colors">
-                  History
-                </a>
-              </li>
-              <li>
-                <a href="/profile" className="text-gray-300 hover:text-white transition-colors">
-                  Profile
-                </a>
-              </li>
-            </ul>
-          </div>
-
-          {/* Support */}
-          <div>
-            <h3 className="text-lg font-semibold mb-4">Support</h3>
-            <ul className="space-y-2">
-              <li>
-                <a href="#" className="text-gray-300 hover:text-white transition-colors">
-                  Help Center
-                </a>
-              </li>
-              <li>
-                <a href="#" className="text-gray-300 hover:text-white transition-colors">
-                  Contact Us
-                </a>
-              </li>
-              <li>
-                <a href="#" className="text-gray-300 hover:text-white transition-colors">
-                  Privacy Policy
-                </a>
-              </li>
-              <li>
-                <a href="#" className="text-gray-300 hover:text-white transition-colors">
-                  Terms of Service
-                </a>
-              </li>
-            </ul>
-          </div>
-        </div>
-
-        <div className="border-t border-gray-800 mt-8 pt-8 text-center">
-          <p className="text-gray-400">
-            © 2024 AI Study Companion. All rights reserved.
+const Footer = () => (
+  <footer className="bg-gray-950 text-gray-300">
+    <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+      <div className="grid grid-cols-1 gap-10 md:grid-cols-4">
+        <div className="md:col-span-2">
+          <Logo light />
+          <p className="mt-4 max-w-md text-sm text-gray-400">
+            Miraa is your AI study companion: ask a question, get a clear answer and a
+            step-by-step explanation you can actually learn from.
           </p>
         </div>
+
+        <div>
+          <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-white">Product</h3>
+          <ul className="space-y-2 text-sm">
+            <li><Link to="/solve" className="hover:text-white">Solve a problem</Link></li>
+            <li><Link to="/history" className="hover:text-white">History</Link></li>
+            <li><Link to="/profile" className="hover:text-white">Profile & plans</Link></li>
+          </ul>
+        </div>
+
+        <div>
+          <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-white">Learn more</h3>
+          <ul className="space-y-2 text-sm">
+            <li><a href="/#features" className="hover:text-white">Features</a></li>
+            <li><a href="/#how" className="hover:text-white">How it works</a></li>
+            <li><a href="/#faq" className="hover:text-white">FAQ</a></li>
+          </ul>
+        </div>
       </div>
-    </footer>
-  );
-};
+
+      <div className="mt-10 border-t border-gray-800 pt-6 text-sm text-gray-500">
+        © {new Date().getFullYear()} Miraa. All rights reserved.
+      </div>
+    </div>
+  </footer>
+);
 
 export default Footer;

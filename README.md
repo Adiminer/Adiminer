@@ -1,6 +1,41 @@
-# AI Study Companion
+# Miraa — AI Study Companion
 
-A full-stack web application that helps students solve academic problems using AI. Built with React frontend and Node.js/Express backend.
+Miraa is a React website that helps students solve academic problems with
+step-by-step explanations. It ships as a **static website** that runs fully in
+the browser, and can optionally connect to the included Node.js/Express +
+MongoDB backend.
+
+## Miraa website (React)
+
+```bash
+cd frontend
+npm install
+npm run dev      # http://localhost:3000
+npm run build    # production build in frontend/dist
+```
+
+**Pages:** `/` landing page · `/solve` ask a question · `/result` answer with steps ·
+`/history` saved questions · `/profile` stats & plans.
+
+**Standalone mode (default).** With no `VITE_API_URL` set, Miraa solves
+problems in the browser (`src/services/localEngine.js`) and keeps history in
+`localStorage`. The browser engine gives exact, worked solutions for:
+
+- arithmetic (`(3 + 4) * 2^3 - 10 / 4`, `sqrt(144) + 3^2`)
+- percentages (`What is 15% of 80?`)
+- linear equations (`3(y - 2) = 2y + 5`)
+- quadratic equations (`x^2 - 5x + 6 = 0`)
+
+Any other question gets a guided study plan.
+
+**Backend mode.** Set `VITE_API_URL=http://localhost:5000/api` in
+`frontend/.env` to use the Express API. If the API can't be reached, Miraa
+falls back to the browser engine.
+
+**Deploying.** `frontend/dist` is a static single-page app. `vercel.json`
+(Vercel) and `public/_redirects` (Netlify) send every route to `index.html`.
+On Vercel or Netlify, set the project root to `frontend`, the build command to
+`npm run build` and the output folder to `dist`.
 
 ## Features
 
